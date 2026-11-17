@@ -1,0 +1,109 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Endra Push v2: interactive one-file upload to TI-Nspire Documents root (/).
+# Key fix: pass an ABSOLUTE TERMUX-PRIVATE source path into the -e child process.
+# The child may not inherit the calling shell's working directory.
+
+printf '\n==================================\n'
+printf '       ENDRA PUSH v2\n'
+printf '==================================\n\n'
+
+SOURCE="${1:-}"
+if [ -z "$SOURCE" ]; then
+    read -r -p 'Paste the FULL file path: ' SOURCE
+fi
+# Accept file:// paths copied by Android file managers.
+SOURCE="${SOURCE#file://}"
+# Remove one pair of surrounding quotes, if a file manager pasted them.
+case "$SOURCE" in
+    \"*\") SOURCE="${SOURCE#\"}"; SOURCE="${SOURCE%\"}" ;;
+    \'*\') SOURCE="${SOURCE#\'}"; SOURCE="${SOURCE%\'}" ;;
+esac
+
+if [ ! -f "$SOURCE" ]; then
+    printf 'ERROR: File not found: %s\n' "$SOURCE"
+    exit 1
+fi
+
+case "$SOURCE" in
+    *.tns) ;;
+    *) printf 'ERROR: Only .tns files are supported.\n'; exit 1 ;;
+esac
+
+if ! command -v termux-usb >/dev/null 2>&1; then
+    printf 'ERROR: termux-usb missing. Install Termux:API and the termux-api package.\n'
+    exit 1
+fi
+
+if ! command -v nlink >/dev/null 2>&1; then
+    printf 'ERROR: nlink command missing from PATH.\n'
+    exit 1
+fi
+
+WORK="$HOME/nlink-termux"
+if [ ! -d "$WORK" ]; then
+    printf 'ERROR: Missing nlink folder: %s\n' "$WORK"
+    exit 1
+fi
+
+FILE="${SOURCE##*/}"
+TARGET="$WORK/$FILE"
+printf '\n===== CHECK SOURCE =====\n'
+ls -lh -- "$SOURCE"
+printf '\n===== STAGE FILE IN TERMUX =====\n'
+if [ "$SOURCE" != "$TARGET" ]; then
+    if ! cp -- "$SOURCE" "$TARGET"; then
+        printf 'ERROR: Could not copy file into %s\n' "$WORK"
+        exit 1
+    fi
+fi
+
+if [ ! -s "$TARGET" ]; then
+    printf 'ERROR: Staged file is empty or missing: %s\n' "$TARGET"
+    exit 1
+fi
+
+ls -lh -- "$TARGET"
+wc -c -- "$TARGET"
+printf 'Source used by nlink: %s\n' "$TARGET"
+
+printf '\n===== AUTO-DETECT NSPIRE =====\n'
+USB_LIST="$(termux-usb -l 2>&1)"
+DEVICES="$(printf '%s\n' "$USB_LIST" | grep -oE '/dev/bus/usb/[0-9]+/[0-9]+' | sort -u)"
+if [ -z "$DEVICES" ]; then
+    printf 'ERROR: No USB devices found. Reconnect calculator; check cable and OTG.\n'
+    printf 'termux-usb -l said: %s\n' "$USB_LIST"
+    exit 1
+fi
+
+FOUND=""
+while IFS= read -r DEVICE; do
+    [ -n "$DEVICE" ] || continue
+    printf 'Checking %s ...\n' "$DEVICE"
+    PROBE="$(termux-usb -r -E -e 'nlink ls /' "$DEVICE" 2>&1)"
+    RET=$?
+    if [ "$RET" -eq 0 ] && printf '%s\n' "$PROBE" | grep -Eq '(^|[[:space:]])(ndless/|MyLib/|GBA/|MyWidgets/)'; then
+        printf 'TI-Nspire verified on %s\n' "$DEVICE"
+        FOUND="$DEVICE"
+        break
+    fi
+    printf 'Not a confirmed Nspire (status %s): %s\n' "$RET" "${PROBE:0:120}"
+done <<< "$DEVICES"
+
+if [ -z "$FOUND" ]; then
+    printf 'ERROR: No Nspire answered the read-only directory check.\n'
+    exit 1
+fi
+
+# Bash %q keeps unusual filenames safe when -e invokes a shell command.
+printf -v SAFE_TARGET '%q' "$TARGET"
+printf '\n===== UPLOADING TO NSPIRE / =====\n'
+printf 'USB: %s\n' "$FOUND"
+printf 'File: %s\n' "$FILE"
+if termux-usb -r -E -e "nlink upload $SAFE_TARGET /" "$FOUND"; then
+    printf '\n===== UPLOAD COMMAND SUCCEEDED =====\n'
+    printf 'Check your Nspire root for: %s\n' "$FILE"
+else
+    STATUS=$?
+    printf '\nERROR: Upload failed (exit %s).\n' "$STATUS"
+    exit "$STATUS"
+fi
