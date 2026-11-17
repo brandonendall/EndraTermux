@@ -1,0 +1,42 @@
+name: Endra USB Recovery V2 Android build
+on:
+  push:
+    branches: [feature/endra-usb-recovery-v2]
+    paths:
+      - 'source/nlink-termux/**'
+      - '.github/workflows/endra-usb-recovery-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Build separate Android diagnostic executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_NDK_LATEST_HOME"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang"
+          export CXX_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang++"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC_aarch64_linux_android"
+          export CC="$CC_aarch64_linux_android"
+          export CXX="$CXX_aarch64_linux_android"
+          export AR="$AR_aarch64_linux_android"
+          cd source/nlink-termux
+          cargo build --locked --release --target aarch64-linux-android
+          mkdir -p ../../dist
+          cp target/aarch64-linux-android/release/nlink-termux ../../dist/nlink-v2
+          file ../../dist/nlink-v2
+          sha256sum ../../dist/nlink-v2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndraTermux_USB_Recovery_V2_aarch64
+          path: dist/nlink-v2
+          if-no-files-found: error
