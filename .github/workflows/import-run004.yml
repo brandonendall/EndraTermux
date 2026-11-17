@@ -1,0 +1,57 @@
+name: Import Run004 recovered NLink
+on:
+  push:
+    paths:
+      - '.github/workflows/import-run004.yml'
+      - 'EndraTermux_Run004_Source_And_Binary.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Validate and extract verified recovery package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="EndraTermux_Run004_Source_And_Binary.zip"
+          test -f "$ZIP"
+          python3 - <<'PY'
+          import zipfile,hashlib,pathlib
+          zpath='EndraTermux_Run004_Source_And_Binary.zip'
+          with zipfile.ZipFile(zpath) as z:
+              entries=z.infolist()
+              assert entries, 'Empty ZIP'
+              assert all(not x.filename.startswith('/') and '..' not in pathlib.PurePosixPath(x.filename).parts for x in entries), 'Unsafe ZIP path'
+              assert all(x.filename.startswith(('bin/aarch64/','source/nlink-termux/')) for x in entries), 'Unexpected ZIP entry'
+              assert z.testzip() is None, 'ZIP CRC error'
+              binary=z.read('bin/aarch64/nlink')
+              digest=hashlib.sha256(binary).hexdigest()
+              expected='5bf3261147f5f264d03ab7d523e29beb40ab6e6a056c4c0af26bbdb0de398c57'
+              assert digest==expected, f'Unexpected NLink SHA256: {digest}'
+              assert 'source/nlink-termux/src/main.rs' in z.namelist()
+              assert 'source/nlink-termux/Cargo.toml' in z.namelist()
+              z.extractall('.')
+          PY
+          chmod 755 bin/aarch64/nlink
+          sha256sum bin/aarch64/nlink
+      - name: Commit recovered binary and source to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bin/aarch64/nlink source/nlink-termux
+          if git diff --cached --quiet; then
+            echo 'Recovered files already committed.'
+          else
+            git commit -m 'Run004: import verified NLink binary and recovered Rust source'
+            git push origin HEAD:main
+          fi
