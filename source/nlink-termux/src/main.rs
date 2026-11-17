@@ -238,11 +238,13 @@ fn main() {
               }
               Err(error) => {
                 bar.abandon_with_message(&format!("Failed: {}", error));
+                std::process::exit(1);
               }
             }
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Download(Download { dest, files }) => {
@@ -304,6 +306,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::UploadOS(UploadOS { file, no_check_os }) => {
@@ -365,6 +368,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Copy(Copy {
@@ -382,6 +386,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Move(Move {
@@ -399,6 +404,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Mkdir(Mkdir { path }) => {
@@ -413,6 +419,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Rmdir(Rmdir { path }) => {
@@ -427,6 +434,7 @@ fn main() {
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::Ls(Ls { path }) => {
@@ -447,10 +455,12 @@ fn main() {
             }
             Err(error) => {
               eprintln!("Failed to list directory: {}", error);
+              std::process::exit(1);
             }
           }
         } else {
           eprintln!("Couldn't find any device");
+          std::process::exit(1);
         }
       }
       SubCommand::License => {
