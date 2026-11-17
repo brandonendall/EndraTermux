@@ -8,6 +8,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use libnspire::{dir::EntryType, PID, PID_CX2, VID};
 
 use std::ptr::NonNull;
+use std::time::Instant;
 
 #[link(name = "usb-1.0")]
 extern "C" {
@@ -56,6 +57,8 @@ enum SubCommand {
   Mkdir(Mkdir),
   Rmdir(Rmdir),
   Ls(Ls),
+  /// Read-only USB and filesystem-service diagnostics
+  Diagnose,
   /// View license information
   License,
 }
@@ -142,11 +145,14 @@ struct Ls {
 }
 
 fn get_dev() -> Option<libnspire::Handle<rusb::Context>> {
+  let start = Instant::now();
+  eprintln!("[V2 DIAG] stage=usb_fd_lookup");
   let fd: isize = (std::env::var("TERMUX_USB_FD").or_else(|_| std::env::var("USB_FD")))
     .ok()?
     .parse()
     .ok()?;
 
+  eprintln!("[V2 DIAG] stage=usb_fd_available elapsed_ms={}", start.elapsed().as_millis());
   unsafe {
     let option = LibusbInitOption {
       option: 2, // LIBUSB_OPTION_NO_DEVICE_DISCOVERY
@@ -155,12 +161,14 @@ fn get_dev() -> Option<libnspire::Handle<rusb::Context>> {
 
     let mut raw_ctx: *mut libusb1_sys::libusb_context = std::ptr::null_mut();
 
+    eprintln!("[V2 DIAG] stage=libusb_context_start");
     let rc = libusb_init_context(&mut raw_ctx, &option, 1);
     if rc != 0 || raw_ctx.is_null() {
       eprintln!("libusb_init_context failed: {}", rc);
       return None;
     }
 
+    eprintln!("[V2 DIAG] stage=libusb_context_result rc={} elapsed_ms={}", rc, start.elapsed().as_millis());
     let context = rusb::Context::from_libusb(
       NonNull::new(raw_ctx)?
     );
@@ -168,12 +176,14 @@ fn get_dev() -> Option<libnspire::Handle<rusb::Context>> {
     let mut raw_handle: *mut libusb1_sys::libusb_device_handle =
       std::ptr::null_mut();
 
+    eprintln!("[V2 DIAG] stage=usb_fd_wrap_start");
     let rc = wrap_sys_device_fd(
       raw_ctx,
       fd,
       &mut raw_handle,
     );
 
+    eprintln!("[V2 DIAG] stage=usb_fd_wrap_result rc={} elapsed_ms={}", rc, start.elapsed().as_millis());
     if rc != 0 || raw_handle.is_null() {
       eprintln!("libusb_wrap_sys_device failed: {}", rc);
       return None;
@@ -184,8 +194,12 @@ fn get_dev() -> Option<libnspire::Handle<rusb::Context>> {
       NonNull::new(raw_handle)?
     );
 
+    eprintln!("[V2 DIAG] stage=nspire_session_start");
     match libnspire::Handle::new(device) {
-      Ok(handle) => Some(handle),
+      Ok(handle) => {
+        eprintln!("[V2 DIAG] stage=nspire_session_ok elapsed_ms={}", start.elapsed().as_millis());
+        Some(handle)
+      },
       Err(e) => {
         eprintln!("libnspire initialization failed: {:?}", e);
         None
@@ -461,6 +475,22 @@ fn main() {
         } else {
           eprintln!("Couldn't find any device");
           std::process::exit(1);
+        }
+      }
+      SubCommand::Diagnose => {
+        eprintln!("[V2 DIAG] mode=read_only no_reset=true no_write=true");
+        if let Some(handle) = get_dev() {
+          for path in ["/", "/documents"] {
+            let start = Instant::now();
+            eprintln!("[V2 DIAG] stage=list_start path={}", path);
+            match handle.list_dir(path) {
+              Ok(entries) => eprintln!("[V2 DIAG] stage=list_ok path={} entries={} elapsed_ms={}", path, entries.len(), start.elapsed().as_millis()),
+              Err(err) => eprintln!("[V2 DIAG] stage=list_error path={} error={:?} elapsed_ms={}", path, err, start.elapsed().as_millis()),
+            }
+          }
+        } else {
+          eprintln!("[V2 DIAG] stage=connection_failed");
+          std::process::exit(2);
         }
       }
       SubCommand::License => {
