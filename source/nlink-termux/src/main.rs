@@ -464,7 +464,7 @@ fn main() {
         }
       }
       SubCommand::License => {
-        println!("{}", include_str!("../../LICENSE"));
+        println!("License text was not included in this recovered source snapshot; see upstream project licenses.");
         println!(include_str!("NOTICE.txt"), env!("CARGO_PKG_REPOSITORY"));
       }
     }
