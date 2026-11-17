@@ -1,30 +1,87 @@
-# EndraTermux
+# EndraTermux — TI-Nspire USB transfers from Android
 
-Portable Termux tooling for TI-Nspire NLink USB transfers.
+**Run004:** documented recovery workflow. The existing `nlink` executable and patched Rust source were recovered from the user's backup, but **are not yet uploaded to this public GitHub repository**. The scripts in this repository have not yet been tested on a second phone.
 
-## Run003 status
-The Termux dependency bootstrap, binary installer, and interactive USB selector are committed. **The verified NLink executable and full Rust source are not yet published.** The source backup includes local patches `rusb-debug` and `libnspire-sys-debug`. Python transfer script remains unlocated.
+## First-time Termux setup
 
-## Setup
+Install Termux and its matching Termux:API companion application. Then:
+
 ```sh
+clear
 pkg update -y
-pkg install git -y
+pkg install -y git python termux-api
 git clone https://github.com/brandonendall/EndraTermux.git
 cd EndraTermux
 bash install.sh
 ```
 
-## Install your existing NLink binary
-On the original phone, the working binary is at `$PREFIX/bin/nlink`. On another aarch64 phone, after transferring and verifying the binary, run:
+The verified ARM64 NLink binary must be installed separately until release packaging is finished.
+
+## Identify your calculator's USB port
+
+Connect the TI-Nspire by OTG and run:
+
 ```sh
-bash scripts/install-nlink.sh /path/to/verified/nlink
+clear
+termux-usb -l
 ```
 
-## USB transfer
-Connect the calculator and approve Android USB access. The helper lists connected USB devices and asks you to select the calculator path:
+Example device path: `/dev/bus/usb/001/002`. **The path may change after reconnection.** Select the TI-Nspire entry and approve Android's USB access prompt.
+
+## Transfer commands
+
+The recovered Rust source defines **upload**, **download**, **ls**, **copy**, **move**, **mkdir**, **rmdir**, and **upload-os**. It does **not** define a `push` subcommand. Confirm the actual installed binary with `nlink --help` before transferring. Replace the USB path with the one reported by `termux-usb -l`.
+
+**List calculator documents:**
+```sh
+termux-usb -r -E -e 'nlink ls /documents' /dev/bus/usb/001/002
+```
+
+**Upload a file (Rust source command):**
+```sh
+termux-usb -r -E -e 'nlink upload example.tns /documents' /dev/bus/usb/001/002
+```
+
+**Download a file (Rust source command):**
+```sh
+mkdir -p "$HOME/nspire-downloads"
+termux-usb -r -E -e 'nlink download /documents/example.tns "$HOME/nspire-downloads"' /dev/bus/usb/001/002
+```
+Note: the inner command's `$HOME` expansion depends on the shell launched by Termux:API. For predictable operation, run the download from a known directory and use a relative destination.
+
+**Create a calculator folder:**
+```sh
+termux-usb -r -E -e 'nlink mkdir /documents/MyFolder' /dev/bus/usb/001/002
+```
+
+**Copy or move on calculator:**
+```sh
+termux-usb -r -E -e 'nlink copy /documents/a.tns /documents/b.tns' /dev/bus/usb/001/002
+termux-usb -r -E -e 'nlink move /documents/b.tns /documents/MyFolder/b.tns' /dev/bus/usb/001/002
+```
+
+**Legacy workflow:** An earlier working command was `termux-usb -r -E -e 'nlink push ...' /dev/bus/usb/001/002`. That differs from the recovered Rust source. Do not assume `push` is supported until `nlink --help` confirms it.
+
+## Interactive USB helper
+
 ```sh
 bash scripts/nlink-usb.sh ls /documents
 ```
-For file transfers, check `nlink --help` for the exact supported subcommand. The recovered Rust source uses `upload`, not `push`. The previously confirmed command form was `termux-usb -r -E -e 'nlink push ...' /dev/bus/usb/001/002`; behavior may differ between binaries.
 
-See [recovery notes](docs/RECOVERY.md).
+This lists USB devices and prompts for the correct path; it does not automatically identify TI hardware.
+
+## Diagnostics
+
+```sh
+bash scripts/verify-install.sh
+command -v nlink
+nlink --help
+uname -m
+sha256sum "$(command -v nlink)"
+```
+
+## Source and licensing
+
+Recovered build: Rust `nlink-termux` 0.1.0, with patched `rusb-debug` (MIT) and `libnspire-sys-debug` (GPL-3.0). Preserve license notices and GPL source obligations when distributing binaries. Do not publish unrelated ROMs, calculator files, logs, credentials, or private configuration.
+
+See `docs/RECOVERY.md` and `docs/IMPORT_NLINK.md`.
