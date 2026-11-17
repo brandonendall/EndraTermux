@@ -1,6 +1,6 @@
 # EndraTermux — TI-Nspire USB transfers from Android
 
-**Run004:** documented recovery workflow. The existing `nlink` executable and patched Rust source were recovered from the user's backup, but **are not yet uploaded to this public GitHub repository**. The scripts in this repository have not yet been tested on a second phone.
+**Run004:** the installer now installs Endra Push v2 automatically and installs NLink when its verified ARM64 executable is present. **The NLink binary and recovered Rust source are not yet published to this public repository**, so a fresh phone still needs the NLink binary imported separately. The setup has not yet been tested on a second phone. Public cloning requires **no GitHub login**.
 
 ## First-time Termux setup
 
@@ -15,9 +15,9 @@ cd EndraTermux
 bash install.sh
 ```
 
-The verified ARM64 NLink binary must be installed separately until release packaging is finished.
+The installer installs the `push` command and creates its staging directory. Until the verified ARM64 NLink binary is committed, import it separately with `bash scripts/install-nlink.sh /path/to/nlink`. Once the binary is published, the same installer will install it automatically after checking its SHA-256 checksum.
 
-## Identify your calculator's USB port
+## Everyday upload — recommended\n\nEndra Push v2 is a **Bash wrapper**, not an NLink subcommand. It stages the file, searches USB paths, probes each device with `nlink ls /`, and uploads to the calculator root using `nlink upload`.\n\n```sh\nclear\npush /storage/emulated/0/Download/example.tns\n```\n\nOr run `push` alone to be prompted for the full `.tns` path. The script requires Termux:API, an installed NLink executable, and `$HOME/nlink-termux` (created by `install.sh`).\n\n## Identify your calculator's USB port
 
 Connect the TI-Nspire by OTG and run:
 
@@ -60,7 +60,7 @@ termux-usb -r -E -e 'nlink copy /documents/a.tns /documents/b.tns' /dev/bus/usb/
 termux-usb -r -E -e 'nlink move /documents/b.tns /documents/MyFolder/b.tns' /dev/bus/usb/001/002
 ```
 
-**Legacy workflow:** An earlier working command was `termux-usb -r -E -e 'nlink push ...' /dev/bus/usb/001/002`. That differs from the recovered Rust source. Do not assume `push` is supported until `nlink --help` confirms it.
+**Important:** `push` is the custom shell script installed in `$PREFIX/bin/push`. It invokes the binary's `nlink upload` command. Do **not** run `nlink push`.
 
 ## Interactive USB helper
 
