@@ -17,6 +17,7 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "cx2.h"
 #include "handle.h"
@@ -132,6 +133,7 @@ int packet_send(nspire_handle_t *h, struct packet p) {
 	dump_packet(&p);
 #endif
 
+	fprintf(stderr, "[V2 WIRE] stage=tx src=%u dst=%u seq=%u ack=%u payload=%u\n", (unsigned)p.src_sid, (unsigned)p.dst_sid, (unsigned)p.seq, (unsigned)p.ack, (unsigned)packet_datasize(&p));
 	finalize_packet(&p);
 	if(h->is_cx2)
 		return packet_send_cx2(h, (char*)&p, size);
@@ -152,12 +154,17 @@ int packet_recv(nspire_handle_t *h, struct packet *p) {
 	else
 		ret = usb_read(&h->device, p, sizeof(*p));
 
-	if (ret < 0)
+	if (ret < 0) {
+		fprintf(stderr, "[V2 WIRE] stage=rx_transport_error rc=%d cx2=%d\n", ret, h->is_cx2);
 		return ret;
+	}
 
 	fix_endian(p);
-	if (!is_header_valid(p) || !is_data_valid(p))
+	if (!is_header_valid(p) || !is_data_valid(p)) {
+		fprintf(stderr, "[V2 WIRE] stage=rx_checksum_error src=%u dst=%u seq=%u\n", (unsigned)p->src_sid, (unsigned)p->dst_sid, (unsigned)p->seq);
 		return -NSPIRE_ERR_INVALPKT;
+	}
+	fprintf(stderr, "[V2 WIRE] stage=rx src=%u dst=%u seq=%u ack=%u payload=%u\n", (unsigned)p->src_sid, (unsigned)p->dst_sid, (unsigned)p->seq, (unsigned)p->ack, (unsigned)packet_datasize(p));
 
 #ifdef DEBUG
 	printf("\nIN  <===\n");
