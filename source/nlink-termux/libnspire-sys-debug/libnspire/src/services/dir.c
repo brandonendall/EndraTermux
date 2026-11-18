@@ -16,6 +16,15 @@
 */
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+
+static long diag_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long)(ts.tv_sec * 1000L + ts.tv_nsec / 1000000L);
+}
+
 #include <string.h>
 
 #include "handle.h"
@@ -71,20 +80,31 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 	uint16_t result;
 	struct nspire_dir_info *d;
 
+	long started = diag_ms();
+	const char *stage = "service_connect";
+	fprintf(stderr, "[V2 FILE] path=%s stage=%s connected_before=%d\n", path, stage, handle->connected);
 	if ( (ret = service_connect(handle, 0x4060)) )
 		return ret;
 
+	fprintf(stderr, "[V2 FILE] stage=service_connect_result ret=%d elapsed_ms=%ld\n", ret, diag_ms()-started);
+	stage = "request_build";
 	/* Begin dir enum */
 	if ( (ret = data_build("bs0", buffer, sizeof(buffer), &len,
 			0x0D, path)) )
 		goto end;
 
+	stage = "request_write";
+	fprintf(stderr, "[V2 FILE] stage=%s request_bytes=%zu elapsed_ms=%ld\n", stage, len, diag_ms()-started);
 	if ( (ret = data_write(handle, buffer, len)) )
 		goto end;
 
+	stage = "initial_response_read";
+	fprintf(stderr, "[V2 FILE] stage=%s elapsed_ms=%ld\n", stage, diag_ms()-started);
 	if ( (ret = data_read(handle, buffer, 2, NULL)) )
 		goto end;
 
+	fprintf(stderr, "[V2 FILE] stage=initial_response_received bytes=%02x:%02x elapsed_ms=%ld\n", buffer[0], buffer[1], diag_ms()-started);
+	stage = "initial_response_decode";
 	if ( (ret = data_scan("bb", buffer, sizeof(buffer),
 			NULL, &code)) )
 		goto end;
@@ -106,6 +126,7 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 	}
 
 	*info_ptr = d;
+	stage = "enumerate";
 	/* Start enumerating */
 	while (1) {
 		ret = dir_enum(handle, info_ptr);
@@ -118,6 +139,7 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 			break;
 	}
 
+	stage = "finalize";
 	/* End dir enum */
 	if ( (ret = data_build("b", buffer, sizeof(buffer), &len,
 			0x0F)) )
@@ -137,7 +159,9 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 
 	ret = NSPIRE_ERR_SUCCESS;
 end:
-	service_disconnect(handle);
+	fprintf(stderr, "[V2 FILE] stage=%s result=%d elapsed_ms=%ld connected=%d\n", stage, ret, diag_ms()-started, handle->connected);
+	int disconnect_rc = service_disconnect(handle);
+	fprintf(stderr, "[V2 FILE] stage=disconnect result=%d connected_after=%d elapsed_ms=%ld\n", disconnect_rc, handle->connected, diag_ms()-started);
 	return ret;
 }
 
