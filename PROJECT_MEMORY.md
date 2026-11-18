@@ -25,3 +25,11 @@
 2. Inspect the repository README, source ZIP, latest branches and workflow runs for updated truth.
 3. Check other project repos separately (EndraLink, Nspire-Development-Hub) rather than confusing them.
 4. Tell the user precisely what you verified and provide tested, copy-paste Termux commands.
+
+
+## Verified Termux checkpoint — 2026-11-18
+User downloaded and extracted `EndraTermux_Run004_Source_And_Binary.zip` in `~/EndraTermux`. Archive includes `bin/aarch64/nlink`, Rust `source/nlink-termux/src/main.rs`, Cargo files, rusb-debug and libnspire-sys-debug source. The extracted binary is Android ARM64 ELF, Android API 30, NDK r29, ~2.7 MB.
+User ran a read-only binary inspection, then copied the installed working binary from `$PREFIX/bin/nlink` to `~/EndraTermux/backups/nlink_WORKING_BACKUP`. Both SHA256 checks matched exactly:
+`5bf3261147f5f264d03ab7d523e29beb40ab6e6a056c4c0af26bbdb0de398c57`.
+The extracted Run004 `bin/aarch64/nlink` also has this exact hash. **No replacement or modification of installed nlink occurred.** The backup exists and was verified by matching hashes. User wants the backup preserved and the USB Recovery V2 diagnostic built and run as a *separate* executable, never installed over `nlink`.
+Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name; keep existing nlink intact; inspect before any safe, read-only USB test. No Build008 test has been reported by user.
