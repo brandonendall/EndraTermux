@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <ctype.h>
 
 static long diag_ms(void) {
   struct timespec ts;
@@ -63,10 +64,18 @@ static int dir_enum(nspire_handle_t *handle, struct nspire_dir_info **d) {
 		return 1;
 	}
 
+	if (actual < 12) {
+		fprintf(stderr, "[V2 ENUM] stage=short_response bytes=%zu\n", actual);
+		return -NSPIRE_ERR_INVALID;
+	}
 	if ( (ret = data_scan("hbswwb0", buffer, actual,
 			NULL, NULL, &name, &size, &date, &is_dir)) )
 		return ret;
 
+	if ((*d)->num >= 4096) {
+		fprintf(stderr, "[V2 ENUM] stage=safety_limit count=%zu\n", (*d)->num);
+		return -NSPIRE_ERR_INVALID;
+	}
 	new_dir = realloc(*d, sizeof(struct nspire_dir_info) +
 			(((*d)->num + 1) * sizeof(struct nspire_dir_item)));
 	if (!new_dir)
@@ -80,7 +89,7 @@ static int dir_enum(nspire_handle_t *handle, struct nspire_dir_info **d) {
 	current->size = size;
 	current->date = date;
 	current->type = is_dir;
-	fprintf(stderr, "[V2 ENUM] stage=item_ok index=%zu elapsed_ms=%ld\n", new_dir->num, diag_ms()-started);
+	fprintf(stderr, "[V2 ENUM] stage=item_ok index=%zu name=%s type=%u size=%u elapsed_ms=%ld\n", new_dir->num, current->name, (unsigned)current->type, (unsigned)current->size, diag_ms()-started);
 
 	return NSPIRE_ERR_SUCCESS;
 }
@@ -132,12 +141,12 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 	}
 
 	d = malloc(sizeof(struct nspire_dir_info));
-	(d)->num = 0;
 	if (!d) {
 		ret = -NSPIRE_ERR_NOMEM;
 		goto end;
 	}
 
+	d->num = 0;
 	*info_ptr = d;
 	stage = "enumerate";
 	/* Start enumerating */
@@ -145,6 +154,7 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
 		ret = dir_enum(handle, info_ptr);
 		if (ret < 0) {
 			free(*info_ptr);
+			*info_ptr = NULL;
 			goto end;
 		}
 
