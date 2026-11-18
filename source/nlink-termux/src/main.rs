@@ -59,6 +59,8 @@ enum SubCommand {
   Ls(Ls),
   /// Read-only USB and filesystem-service diagnostics
   Diagnose(Diagnose),
+  /// Build 010: single-path, read-only direct file metadata probe
+  ProbePath(ProbePath),
   /// View license information
   License,
 }
@@ -71,6 +73,14 @@ struct Diagnose {
   session_only: bool,
   /// List just this directory (default: /); avoids a second request after Busy
   #[clap(long, default_value = "/")]
+  path: String,
+}
+
+/// Direct file metadata probe; does not enumerate parent directories or write files.
+#[derive(Args, Debug)]
+struct ProbePath {
+  /// Full USB file-service path (not a raw system filesystem path)
+  #[clap(long)]
   path: String,
 }
 
@@ -489,7 +499,7 @@ fn main() {
         }
       }
       SubCommand::Diagnose(Diagnose { session_only, path }) => {
-        eprintln!("[V2 DIAG] build=009 mode=read_only no_reset=true no_write=true single_probe=true");
+        eprintln!("[V2 DIAG] build=010 mode=read_only no_reset=true no_write=true single_probe=true");
         if !session_only && (!path.starts_with('/') || path.contains("..") || path.contains('\\')) {
           eprintln!("[V2 DIAG] stage=invalid_path (absolute path required; no traversal)");
           std::process::exit(2);
@@ -516,6 +526,30 @@ fn main() {
           }
         } else {
           eprintln!("[V2 DIAG] stage=connection_failed");
+          std::process::exit(2);
+        }
+      }
+      SubCommand::ProbePath(ProbePath { path }) => {
+        eprintln!("[V2 PROBE] build=010 mode=read_only no_reset=true no_write=true");
+        if !path.starts_with('/') || path == "/" || path.contains("..") || path.contains('\\') || path.contains("//") {
+          eprintln!("[V2 PROBE] invalid_path");
+          std::process::exit(2);
+        }
+        eprintln!("[V2 PROBE] stage=connect path={}", path);
+        if let Some(handle) = get_dev() {
+          let start = Instant::now();
+          eprintln!("[V2 PROBE] stage=file_attr_start path={}", path);
+          match handle.file_attr(&path) {
+            Ok(attr) => {
+              eprintln!("[V2 PROBE] stage=file_attr_ok path={} size={} elapsed_ms={}", path, attr.size(), start.elapsed().as_millis());
+            },
+            Err(err) => {
+              eprintln!("[V2 PROBE] stage=file_attr_error path={} error={:?} elapsed_ms={}", path, err, start.elapsed().as_millis());
+              std::process::exit(3);
+            }
+          }
+        } else {
+          eprintln!("[V2 PROBE] stage=connection_failed");
           std::process::exit(2);
         }
       }
