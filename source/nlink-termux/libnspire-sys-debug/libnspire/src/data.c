@@ -16,6 +16,8 @@
 */
 
 #include <string.h>
+#include <stdio.h>
+#include <time.h>
 #include <stdarg.h>
 
 #include "endianconv.h"
@@ -96,10 +98,17 @@ int data_read(nspire_handle_t *handle, void *ptr, size_t maxlen, size_t *actual)
 	int ret;
 	size_t len;
 	struct packet p;
+	unsigned skipped = 0;
+	struct timespec started, now;
+	clock_gettime(CLOCK_MONOTONIC, &started);
 
 	while (1) {
-		if ( (ret = packet_recv(handle, &p)) )
+		if ( (ret = packet_recv(handle, &p)) ) {
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			fprintf(stderr, "[V2 PACKET] stage=recv_error rc=%d skipped=%u elapsed_ms=%ld host_sid=%u\n", ret, skipped, (long)((now.tv_sec-started.tv_sec)*1000L+(now.tv_nsec-started.tv_nsec)/1000000L), (unsigned)handle->host_sid);
 			return ret;
+		}
+		fprintf(stderr, "[V2 PACKET] stage=recv_ok dst=%u src=%u expected=%u data_size=%zu\n", (unsigned)p.dst_sid, (unsigned)p.src_sid, (unsigned)handle->host_sid, packet_datasize(&p));
 
 		if (p.dst_sid == handle->host_sid) {
 			// Acks are handled a level lower only, in packet_recv
@@ -110,6 +119,7 @@ int data_read(nspire_handle_t *handle, void *ptr, size_t maxlen, size_t *actual)
 				return ret;
 			break;
 		} else {
+			skipped++;
 			handle_unknown(handle, p);
 		}
 
@@ -120,6 +130,7 @@ int data_read(nspire_handle_t *handle, void *ptr, size_t maxlen, size_t *actual)
 	len = (maxlen < packet_datasize(&p)) ? maxlen : packet_datasize(&p);
 	memcpy(ptr, packet_dataptr(&p), len);
 
+	fprintf(stderr, "[V2 PACKET] stage=payload_copy bytes=%zu skipped=%u\n", len, skipped);
 	if(actual)
 		*actual = len;
 
