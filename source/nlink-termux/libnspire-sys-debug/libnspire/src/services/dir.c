@@ -42,16 +42,28 @@ static int dir_enum(nspire_handle_t *handle, struct nspire_dir_info **d) {
 	struct nspire_dir_item *current;
 
 	unsigned char buffer[254];
+	long started = diag_ms();
+	size_t actual = 0;
+	fprintf(stderr, "[V2 ENUM] stage=request_write item_index=%zu host_sid=%u\n", (*d)->num, (unsigned)handle->host_sid);
 
-	if ( (ret = data_write8(handle, 0x0E)) )
+	if ( (ret = data_write8(handle, 0x0E)) ) {
+		fprintf(stderr, "[V2 ENUM] stage=request_write_error rc=%d elapsed_ms=%ld\n", ret, diag_ms()-started);
 		return ret;
-	if ( (ret = data_read(handle, buffer, sizeof(buffer), NULL)) )
+	}
+	fprintf(stderr, "[V2 ENUM] stage=response_wait elapsed_ms=%ld\n", diag_ms()-started);
+	if ( (ret = data_read(handle, buffer, sizeof(buffer), &actual)) ) {
+		fprintf(stderr, "[V2 ENUM] stage=response_error rc=%d elapsed_ms=%ld\n", ret, diag_ms()-started);
 		return ret;
+	}
+	fprintf(stderr, "[V2 ENUM] stage=response_ok actual=%zu first=%02x second=%02x elapsed_ms=%ld\n", actual, actual ? buffer[0] : 0, actual > 1 ? buffer[1] : 0, diag_ms()-started);
+	if (!actual) return -NSPIRE_ERR_INVALID;
 
-	if (buffer[0] == 0xFF)
+	if (buffer[0] == 0xFF) {
+		fprintf(stderr, "[V2 ENUM] stage=end_marker elapsed_ms=%ld\n", diag_ms()-started);
 		return 1;
+	}
 
-	if ( (ret = data_scan("hbswwb0", buffer, sizeof(buffer),
+	if ( (ret = data_scan("hbswwb0", buffer, actual,
 			NULL, NULL, &name, &size, &date, &is_dir)) )
 		return ret;
 
@@ -68,6 +80,7 @@ static int dir_enum(nspire_handle_t *handle, struct nspire_dir_info **d) {
 	current->size = size;
 	current->date = date;
 	current->type = is_dir;
+	fprintf(stderr, "[V2 ENUM] stage=item_ok index=%zu elapsed_ms=%ld\n", new_dir->num, diag_ms()-started);
 
 	return NSPIRE_ERR_SUCCESS;
 }
