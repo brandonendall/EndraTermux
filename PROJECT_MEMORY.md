@@ -33,3 +33,11 @@ User ran a read-only binary inspection, then copied the installed working binary
 `5bf3261147f5f264d03ab7d523e29beb40ab6e6a056c4c0af26bbdb0de398c57`.
 The extracted Run004 `bin/aarch64/nlink` also has this exact hash. **No replacement or modification of installed nlink occurred.** The backup exists and was verified by matching hashes. User wants the backup preserved and the USB Recovery V2 diagnostic built and run as a *separate* executable, never installed over `nlink`.
 Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name; keep existing nlink intact; inspect before any safe, read-only USB test. No Build008 test has been reported by user.
+
+
+## GitHub Actions artifact download capability — verified 2026-11-18
+**Important correction to earlier claims that ChatGPT could not download the build:** The connected GitHub tool `mcp__GitHub__download_workflow_artifact` successfully downloaded GitHub Actions artifact ID `14383952372` from `brandonendall/EndraTermux` into the current ChatGPT container as `/mnt/data/EndraTermux_USB_Recovery_V2_Build008.zip`. ChatGPT provided a direct sandbox attachment link: `[Download Build 008](sandbox:/mnt/data/EndraTermux_USB_Recovery_V2_Build008.zip)`. This file is available **in the chat where downloaded**, not guaranteed to persist across future conversations; repeat the connector download in a new session when necessary. Do not falsely claim downloads are impossible before checking this tool.
+- The ZIP was locally inspected with `unzip -l`: it contains exactly one executable `nlink-v2` (2,884,841 bytes).
+- Download flow: discover GitHub `download_workflow_artifact`; call with repo, artifact ID, account link ID, optional filename; verify file exists under `/mnt/data` and inspect ZIP; provide a **direct sandbox file link**. For newer builds, first discover the latest successful workflow run and its artifact ID; do not assume Build008 is latest.
+- User explicitly requires direct ChatGPT attachments whenever possible, not a GitHub Actions webpage.
+- **Do not overwrite `$PREFIX/bin/nlink`**. Install `nlink-v2` separately; confirm CLI usage and USB safety before connecting to the calculator.
