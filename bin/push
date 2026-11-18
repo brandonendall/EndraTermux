@@ -1,109 +1,46 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Endra Push v2: interactive one-file upload to TI-Nspire Documents root (/).
-# Key fix: pass an ABSOLUTE TERMUX-PRIVATE source path into the -e child process.
-# The child may not inherit the calling shell's working directory.
-
-printf '\n==================================\n'
-printf '       ENDRA PUSH v2\n'
-printf '==================================\n\n'
-
+# EndraTermux Run011 — Smart Push (nlink-v2 transport)
+set -euo pipefail
+usage() { echo 'Usage: push SOURCE [CALCULATOR_DIRECTORY]'; echo 'Default directory: /'; }
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then usage; exit 0; fi
+if (( $# > 2 )); then usage >&2; exit 2; fi
 SOURCE="${1:-}"
-if [ -z "$SOURCE" ]; then
-    read -r -p 'Paste the FULL file path: ' SOURCE
-fi
-# Accept file:// paths copied by Android file managers.
+if [[ -z "$SOURCE" ]]; then read -r -p 'Local file path: ' SOURCE; fi
 SOURCE="${SOURCE#file://}"
-# Remove one pair of surrounding quotes, if a file manager pasted them.
-case "$SOURCE" in
-    \"*\") SOURCE="${SOURCE#\"}"; SOURCE="${SOURCE%\"}" ;;
-    \'*\') SOURCE="${SOURCE#\'}"; SOURCE="${SOURCE%\'}" ;;
-esac
-
-if [ ! -f "$SOURCE" ]; then
-    printf 'ERROR: File not found: %s\n' "$SOURCE"
-    exit 1
+[[ -f "$SOURCE" && -r "$SOURCE" ]] || { echo "ERROR: Cannot read: $SOURCE" >&2; exit 1; }
+DEST="${2:-/}"
+[[ "$DEST" == /* ]] || { echo 'ERROR: Destination must start with /' >&2; exit 2; }
+# No ambiguous traversal or control characters in destination.
+[[ "$DEST" != *'..'* && "$DEST" != *$'\n'* && "$DEST" != *$'\r'* ]] || { echo 'ERROR: Invalid destination' >&2; exit 2; }
+[[ "$DEST" == / ]] || DEST="${DEST%/}"
+for cmd in termux-usb nlink-v2; do command -v "$cmd" >/dev/null || { echo "ERROR: Missing $cmd" >&2; exit 1; }; done
+# Nspire documents need .tns suffix, even for archives; never modify original.
+NAME="${SOURCE##*/}"
+[[ "$NAME" == *.tns ]] || NAME="$NAME.tns"
+WORK="${TMPDIR:-$HOME/.cache}/endra-smart-push"
+mkdir -p "$WORK"
+STAGED="$(mktemp "$WORK/XXXXXXXX")"
+trap 'rm -f -- "$STAGED"' EXIT
+cp -- "$SOURCE" "$STAGED"
+# Give the staged file its final extension, so nlink-v2 sends the right name.
+FINAL="$WORK/$NAME"
+if [[ "$STAGED" != "$FINAL" ]]; then
+  mv -f -- "$STAGED" "$FINAL"
+  STAGED="$FINAL"
 fi
-
-case "$SOURCE" in
-    *.tns) ;;
-    *) printf 'ERROR: Only .tns files are supported.\n'; exit 1 ;;
-esac
-
-if ! command -v termux-usb >/dev/null 2>&1; then
-    printf 'ERROR: termux-usb missing. Install Termux:API and the termux-api package.\n'
-    exit 1
+USB_LIST="$(termux-usb -l)"
+mapfile -t DEVICES < <(printf '%s\n' "$USB_LIST" | grep -oE '/dev/bus/usb/[0-9]+/[0-9]+' | sort -u || true)
+DEVICE="${ENDRA_USB_DEVICE:-}"
+if [[ -z "$DEVICE" ]]; then
+  if (( ${#DEVICES[@]} == 1 )); then DEVICE="${DEVICES[0]}";
+  elif (( ${#DEVICES[@]} == 0 )); then echo 'ERROR: No USB devices found' >&2; exit 1;
+  else printf 'Multiple USB devices found:\n%s\nSet ENDRA_USB_DEVICE to the calculator USB path.\n' "${DEVICES[*]}" >&2; exit 1; fi
 fi
-
-if ! command -v nlink >/dev/null 2>&1; then
-    printf 'ERROR: nlink command missing from PATH.\n'
-    exit 1
-fi
-
-WORK="$HOME/nlink-termux"
-if [ ! -d "$WORK" ]; then
-    printf 'ERROR: Missing nlink folder: %s\n' "$WORK"
-    exit 1
-fi
-
-FILE="${SOURCE##*/}"
-TARGET="$WORK/$FILE"
-printf '\n===== CHECK SOURCE =====\n'
-ls -lh -- "$SOURCE"
-printf '\n===== STAGE FILE IN TERMUX =====\n'
-if [ "$SOURCE" != "$TARGET" ]; then
-    if ! cp -- "$SOURCE" "$TARGET"; then
-        printf 'ERROR: Could not copy file into %s\n' "$WORK"
-        exit 1
-    fi
-fi
-
-if [ ! -s "$TARGET" ]; then
-    printf 'ERROR: Staged file is empty or missing: %s\n' "$TARGET"
-    exit 1
-fi
-
-ls -lh -- "$TARGET"
-wc -c -- "$TARGET"
-printf 'Source used by nlink: %s\n' "$TARGET"
-
-printf '\n===== AUTO-DETECT NSPIRE =====\n'
-USB_LIST="$(termux-usb -l 2>&1)"
-DEVICES="$(printf '%s\n' "$USB_LIST" | grep -oE '/dev/bus/usb/[0-9]+/[0-9]+' | sort -u)"
-if [ -z "$DEVICES" ]; then
-    printf 'ERROR: No USB devices found. Reconnect calculator; check cable and OTG.\n'
-    printf 'termux-usb -l said: %s\n' "$USB_LIST"
-    exit 1
-fi
-
-FOUND=""
-while IFS= read -r DEVICE; do
-    [ -n "$DEVICE" ] || continue
-    printf 'Checking %s ...\n' "$DEVICE"
-    PROBE="$(termux-usb -r -E -e 'nlink ls /' "$DEVICE" 2>&1)"
-    RET=$?
-    if [ "$RET" -eq 0 ] && printf '%s\n' "$PROBE" | grep -Eq '(^|[[:space:]])(ndless/|MyLib/|GBA/|MyWidgets/)'; then
-        printf 'TI-Nspire verified on %s\n' "$DEVICE"
-        FOUND="$DEVICE"
-        break
-    fi
-    printf 'Not a confirmed Nspire (status %s): %s\n' "$RET" "${PROBE:0:120}"
-done <<< "$DEVICES"
-
-if [ -z "$FOUND" ]; then
-    printf 'ERROR: No Nspire answered the read-only directory check.\n'
-    exit 1
-fi
-
-# Bash %q keeps unusual filenames safe when -e invokes a shell command.
-printf -v SAFE_TARGET '%q' "$TARGET"
-printf '\n===== UPLOADING TO NSPIRE / =====\n'
-printf 'USB: %s\n' "$FOUND"
-printf 'File: %s\n' "$FILE"
-if termux-usb -r -E -e "nlink upload $SAFE_TARGET /" "$FOUND"; then
-    printf '\n===== UPLOAD COMMAND SUCCEEDED =====\n'
-    printf 'Check your Nspire root for: %s\n' "$FILE"
-else
-    STATUS=$?
-    printf '\nERROR: Upload failed (exit %s).\n' "$STATUS"
-    exit "$STATUS"
-fi
+[[ "$DEVICE" =~ ^/dev/bus/usb/[0-9]+/[0-9]+$ ]] || { echo 'ERROR: Invalid USB device' >&2; exit 2; }
+printf 'Endra Smart Push Run011\nUSB: %s\nSource: %s\nDestination: %s\nName: %s\n' "$DEVICE" "$SOURCE" "$DEST" "$NAME"
+# No root enumeration (known to hang on some calculator OS versions).
+# nlink-v2 is the previously proven transfer engine.
+printf -v QSOURCE '%q' "$STAGED"
+printf -v QDEST '%q' "$DEST"
+termux-usb -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE"
+echo 'Upload command completed. Confirm the file appears on the calculator.'
