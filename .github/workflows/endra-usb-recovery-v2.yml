@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
           sudo apt-get update -qq
-          sudo apt-get install -y libusb-1.0-0-dev:arm64 pkg-config
+          sudo apt-get install -y libusb-1.0-0-dev:arm64 pkg-config patchelf
       - name: Build separate Android diagnostic executable
         shell: bash
         run: |
@@ -41,6 +41,10 @@ jobs:
           cargo build --locked --release --target aarch64-linux-android
           mkdir -p ../../dist
           cp target/aarch64-linux-android/release/nlink-termux ../../dist/nlink-v2
+          # Change only ELF DT_NEEDED, preserving section headers and offsets.
+          patchelf --replace-needed libusb-1.0.so.0 libusb-1.0.so ../../dist/nlink-v2
+          readelf -d ../../dist/nlink-v2 | grep 'libusb-1.0.so]'
+          readelf -S ../../dist/nlink-v2 >/dev/null
           file ../../dist/nlink-v2
           sha256sum ../../dist/nlink-v2
       - uses: actions/upload-artifact@v4
