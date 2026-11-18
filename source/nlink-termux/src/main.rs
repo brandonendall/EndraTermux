@@ -58,9 +58,20 @@ enum SubCommand {
   Rmdir(Rmdir),
   Ls(Ls),
   /// Read-only USB and filesystem-service diagnostics
-  Diagnose,
+  Diagnose(Diagnose),
   /// View license information
   License,
+}
+
+/// Read-only diagnostic: choose one filesystem operation per USB session.
+#[derive(Args, Debug)]
+struct Diagnose {
+  /// Open a USB session without querying the filesystem
+  #[clap(long, conflicts_with = "path")]
+  session_only: bool,
+  /// List just this directory (default: /); avoids a second request after Busy
+  #[clap(long, default_value = "/")]
+  path: String,
 }
 
 /// Upload files to the calculator
@@ -477,15 +488,30 @@ fn main() {
           std::process::exit(1);
         }
       }
-      SubCommand::Diagnose => {
-        eprintln!("[V2 DIAG] mode=read_only no_reset=true no_write=true");
+      SubCommand::Diagnose(Diagnose { session_only, path }) => {
+        eprintln!("[V2 DIAG] build=009 mode=read_only no_reset=true no_write=true single_probe=true");
+        if !session_only && (!path.starts_with('/') || path.contains("..") || path.contains('\\')) {
+          eprintln!("[V2 DIAG] stage=invalid_path (absolute path required; no traversal)");
+          std::process::exit(2);
+        }
         if let Some(handle) = get_dev() {
-          for path in ["/", "/documents"] {
+          if session_only {
+            eprintln!("[V2 DIAG] stage=session_only_ok filesystem_requests=0");
+          } else {
             let start = Instant::now();
             eprintln!("[V2 DIAG] stage=list_start path={}", path);
-            match handle.list_dir(path) {
-              Ok(entries) => eprintln!("[V2 DIAG] stage=list_ok path={} entries={} elapsed_ms={}", path, entries.len(), start.elapsed().as_millis()),
-              Err(err) => eprintln!("[V2 DIAG] stage=list_error path={} error={:?} elapsed_ms={}", path, err, start.elapsed().as_millis()),
+            match handle.list_dir(&path) {
+              Ok(entries) => {
+                eprintln!("[V2 DIAG] stage=list_ok path={} entries={} elapsed_ms={}", path, entries.len(), start.elapsed().as_millis());
+                for (index, entry) in entries.iter().enumerate() {
+                  eprintln!("[V2 DIAG] stage=entry index={} name={:?} type={:?}", index + 1, entry.name(), entry.entry_type());
+                }
+              },
+              Err(err) => {
+                eprintln!("[V2 DIAG] stage=list_error path={} error={:?} elapsed_ms={}", path, err, start.elapsed().as_millis());
+                eprintln!("[V2 DIAG] stage=stop_after_error followup_requests=0");
+                std::process::exit(3);
+              },
             }
           }
         } else {
