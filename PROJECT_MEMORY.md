@@ -57,3 +57,9 @@ Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name
 - Successful `nlink-v2 upload` return code is **transport command success**, NOT remote checksum verification.
 - EndraTask companion project runs inside TI-Nspire and may export read-only process/USB/filesystem diagnostics. Remote task kill is a future capability, NOT available via the current `push` file-transfer command.
 - Next: GitHub Actions Bash validation, test Run012 on Termux with a small disposable file, compare local logs with EndraTask diagnostic reports, then promote to main only after verified.
+
+## User delivery preference — mandatory (2026-11-19)
+- For EVERY future EndraTermux build, retrieve the successful GitHub Actions artifact using the connected GitHub artifact download tool and attach the actual downloadable file in the ChatGPT conversation. Verify local file exists and inspect its contents before linking. Do not merely send a GitHub Actions page or raw GitHub link when a direct attachment is possible.
+- Always accompany the direct download with concise, tested-as-far-as-possible Termux copy/paste installation and test commands; start every command block with `clear`.
+- Default Android Download location: `/storage/emulated/0/Download/`. The GitHub Actions artifact ZIP may contain a nested `.tar.gz`; inspect before installation. Preserve installed working `push` as a backup, and NEVER replace `nlink` or `nlink-v2` with a script archive.
+- Run012 GitHub Actions successful run ID 44605920810, artifact ID 14569652719, artifact name `EndraTermux_Run012_SmartPush`. Downloaded into chat as `/mnt/data/EndraTermux_Run012_Build.zip`; outer ZIP contains `EndraTermux_Run012_SmartPush.tar.gz` and `SHA256SUMS.txt`; tarball contains `EndraTermux_Run012/push` and `PROJECT_MEMORY.md`. This is Bash script packaging, not a newly compiled nlink-v2 binary.
