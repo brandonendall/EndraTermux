@@ -61,9 +61,10 @@ log "start source=$SOURCE destination=$DEST device=$DEVICE size=$(wc -c < "$SOUR
 for attempt in 1 2; do
   ERRFILE="$(mktemp "$WORK/error.XXXXXXXX")"
   set +e
-  "$USB_CMD" -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE" 2> >(tee "$ERRFILE" >&2)
+  "$USB_CMD" -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE" 2> "$ERRFILE"
   rc=$?
   set -e
+  cat "$ERRFILE" >&2
   if (( rc == 0 )); then
     log "completed attempt=$attempt status=transport-success remote-verification=not-available"
     rm -f "$ERRFILE"
