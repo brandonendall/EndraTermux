@@ -1,0 +1,31 @@
+name: EndraTermux Run012 Smart Push validation
+on:
+  push:
+    branches: [feature/run012-usb-reliability]
+    paths:
+      - 'bin/push'
+      - 'PROJECT_MEMORY.md'
+      - '.github/workflows/run012-smart-push.yml'
+  workflow_dispatch:
+jobs:
+  validate-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax and help
+        run: |
+          bash -n bin/push
+          bash bin/push --help
+      - name: Build portable script package
+        run: |
+          mkdir -p EndraTermux_Run012
+          cp bin/push EndraTermux_Run012/push
+          cp PROJECT_MEMORY.md EndraTermux_Run012/PROJECT_MEMORY.md
+          tar -czf EndraTermux_Run012_SmartPush.tar.gz EndraTermux_Run012
+          sha256sum EndraTermux_Run012_SmartPush.tar.gz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndraTermux_Run012_SmartPush
+          path: |
+            EndraTermux_Run012_SmartPush.tar.gz
+            SHA256SUMS.txt
