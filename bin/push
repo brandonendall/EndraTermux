@@ -1,8 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# EndraTermux Run012 — bounded USB reconnect and diagnostic logging
+# EndraTermux Run013 — quiet-by-default, bounded USB reconnect and diagnostic logging
 set -euo pipefail
-usage() { printf '%s\n' 'Usage: push SOURCE [CALCULATOR_DIRECTORY]' 'Default directory: /' 'Diagnostics: push --diag'; }
+usage() { printf '%s\n' 'Usage: push SOURCE [CALCULATOR_DIRECTORY]' 'Default directory: /' 'Diagnostics: push -d SOURCE [CALCULATOR_DIRECTORY] or push --diag'; }
 USB_CMD=${ENDRA_USB_COMMAND:-termux-usb}
+VERBOSE=0
+if [[ "${1:-}" == -d ]]; then VERBOSE=1; shift; fi
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then usage; exit 0; fi
 if [[ "${1:-}" == --diag ]]; then
   printf 'Endra Smart Push Run012 diagnostics\n'
@@ -37,7 +39,7 @@ mv -- "$STAGED" "$FINAL"
 STAGED="$FINAL"
 LOGDIR="${ENDRA_LOG_DIR:-$HOME/.local/state/endra}"
 mkdir -p "$LOGDIR"
-LOG="$LOGDIR/push-run012.log"
+LOG="$LOGDIR/push-run013.log"
 log() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$LOG"; }
 select_usb() {
   local usb_list
@@ -52,7 +54,11 @@ select_usb() {
   [[ "$DEVICE" =~ ^/dev/bus/usb/[0-9]+/[0-9]+$ ]] || { echo 'ERROR: Invalid USB device' >&2; return 1; }
 }
 select_usb || exit 1
-printf 'Endra Smart Push Run012\nUSB: %s\nSource: %s\nDestination: %s\nName: %s\n' "$DEVICE" "$SOURCE" "$DEST" "$NAME"
+if (( VERBOSE )); then
+  printf 'Endra Smart Push Run013\nUSB: %s\nSource: %s\nDestination: %s\nName: %s\n' "$DEVICE" "$SOURCE" "$DEST" "$NAME"
+else
+  printf 'Sending: %s -> %s\n' "$NAME" "$DEST"
+fi
 printf -v QSOURCE '%q' "$FINAL"
 printf -v QDEST '%q' "$DEST"
 log "start source=$SOURCE destination=$DEST device=$DEVICE size=$(wc -c < "$SOURCE")"
@@ -64,11 +70,11 @@ for attempt in 1 2; do
   "$USB_CMD" -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE" 2> "$ERRFILE"
   rc=$?
   set -e
-  cat "$ERRFILE" >&2
+  if (( VERBOSE || rc != 0 )); then cat "$ERRFILE" >&2; fi
   if (( rc == 0 )); then
     log "completed attempt=$attempt status=transport-success remote-verification=not-available"
     rm -f "$ERRFILE"
-    echo 'Upload command completed; verify the file on the calculator.'
+    echo 'Transfer complete. Verify on calculator.'
     exit 0
   fi
   if (( attempt == 1 )) && grep -qiE '^(No such device|.*permission denied.*)$' "$ERRFILE"; then
