@@ -1,46 +1,83 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# EndraTermux Run011 — Smart Push (nlink-v2 transport)
+# EndraTermux Run012 — bounded USB reconnect and diagnostic logging
 set -euo pipefail
-usage() { echo 'Usage: push SOURCE [CALCULATOR_DIRECTORY]'; echo 'Default directory: /'; }
+usage() { printf '%s\n' 'Usage: push SOURCE [CALCULATOR_DIRECTORY]' 'Default directory: /' 'Diagnostics: push --diag'; }
+USB_CMD=${ENDRA_USB_COMMAND:-termux-usb}
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then usage; exit 0; fi
-if (( $# > 2 )); then usage >&2; exit 2; fi
+if [[ "${1:-}" == --diag ]]; then
+  printf 'Endra Smart Push Run012 diagnostics\n'
+  command -v "$USB_CMD" || exit 1
+  command -v nlink-v2 || exit 1
+  "$USB_CMD" -l
+  exit
+fi
+(( $# <= 2 )) || { usage >&2; exit 2; }
 SOURCE="${1:-}"
 if [[ -z "$SOURCE" ]]; then read -r -p 'Local file path: ' SOURCE; fi
 SOURCE="${SOURCE#file://}"
 [[ -f "$SOURCE" && -r "$SOURCE" ]] || { echo "ERROR: Cannot read: $SOURCE" >&2; exit 1; }
 DEST="${2:-/}"
-[[ "$DEST" == /* ]] || { echo 'ERROR: Destination must start with /' >&2; exit 2; }
-# No ambiguous traversal or control characters in destination.
-[[ "$DEST" != *'..'* && "$DEST" != *$'\n'* && "$DEST" != *$'\r'* ]] || { echo 'ERROR: Invalid destination' >&2; exit 2; }
+[[ "$DEST" == /* && "$DEST" != *'..'* && "$DEST" != *$'\n'* && "$DEST" != *$'\r'* ]] || { echo 'ERROR: Invalid destination' >&2; exit 2; }
 [[ "$DEST" == / ]] || DEST="${DEST%/}"
-for cmd in termux-usb nlink-v2; do command -v "$cmd" >/dev/null || { echo "ERROR: Missing $cmd" >&2; exit 1; }; done
-# Nspire documents need .tns suffix, even for archives; never modify original.
+for cmd in "$USB_CMD" nlink-v2; do command -v "$cmd" >/dev/null || { echo "ERROR: Missing $cmd" >&2; exit 1; }; done
 NAME="${SOURCE##*/}"
 [[ "$NAME" == *.tns ]] || NAME="$NAME.tns"
 WORK="${TMPDIR:-$HOME/.cache}/endra-smart-push"
 mkdir -p "$WORK"
 STAGED="$(mktemp "$WORK/XXXXXXXX")"
-trap 'rm -f -- "$STAGED"' EXIT
+FINAL=''
+cleanup() { rm -f -- "$STAGED"; [[ -z "$FINAL" ]] || rm -f -- "$FINAL"; }
+trap cleanup EXIT
 cp -- "$SOURCE" "$STAGED"
-# Give the staged file its final extension, so nlink-v2 sends the right name.
-FINAL="$WORK/$NAME"
-if [[ "$STAGED" != "$FINAL" ]]; then
-  mv -f -- "$STAGED" "$FINAL"
-  STAGED="$FINAL"
-fi
-USB_LIST="$(termux-usb -l)"
-mapfile -t DEVICES < <(printf '%s\n' "$USB_LIST" | grep -oE '/dev/bus/usb/[0-9]+/[0-9]+' | sort -u || true)
-DEVICE="${ENDRA_USB_DEVICE:-}"
-if [[ -z "$DEVICE" ]]; then
-  if (( ${#DEVICES[@]} == 1 )); then DEVICE="${DEVICES[0]}";
-  elif (( ${#DEVICES[@]} == 0 )); then echo 'ERROR: No USB devices found' >&2; exit 1;
-  else printf 'Multiple USB devices found:\n%s\nSet ENDRA_USB_DEVICE to the calculator USB path.\n' "${DEVICES[*]}" >&2; exit 1; fi
-fi
-[[ "$DEVICE" =~ ^/dev/bus/usb/[0-9]+/[0-9]+$ ]] || { echo 'ERROR: Invalid USB device' >&2; exit 2; }
-printf 'Endra Smart Push Run011\nUSB: %s\nSource: %s\nDestination: %s\nName: %s\n' "$DEVICE" "$SOURCE" "$DEST" "$NAME"
-# No root enumeration (known to hang on some calculator OS versions).
-# nlink-v2 is the previously proven transfer engine.
-printf -v QSOURCE '%q' "$STAGED"
+# Unique staging directory prevents concurrent pushes from overwriting each other.
+SESSION="$(mktemp -d "$WORK/session.XXXXXXXX")"
+FINAL="$SESSION/$NAME"
+trap 'rm -f -- "$STAGED"; rm -rf -- "$SESSION"' EXIT
+mv -- "$STAGED" "$FINAL"
+STAGED="$FINAL"
+LOGDIR="${ENDRA_LOG_DIR:-$HOME/.local/state/endra}"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/push-run012.log"
+log() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$LOG"; }
+select_usb() {
+  local usb_list
+  usb_list="$("$USB_CMD" -l)" || return 1
+  mapfile -t DEVICES < <(printf '%s\n' "$usb_list" | grep -oE '/dev/bus/usb/[0-9]+/[0-9]+' | sort -u || true)
+  DEVICE="${ENDRA_USB_DEVICE:-}"
+  if [[ -z "$DEVICE" ]]; then
+    if (( ${#DEVICES[@]} == 1 )); then DEVICE="${DEVICES[0]}"
+    elif (( ${#DEVICES[@]} == 0 )); then echo 'ERROR: No USB devices found' >&2; return 1
+    else printf 'ERROR: Multiple USB devices. Set ENDRA_USB_DEVICE.\n%s\n' "${DEVICES[*]}" >&2; return 1; fi
+  fi
+  [[ "$DEVICE" =~ ^/dev/bus/usb/[0-9]+/[0-9]+$ ]] || { echo 'ERROR: Invalid USB device' >&2; return 1; }
+}
+select_usb || exit 1
+printf 'Endra Smart Push Run012\nUSB: %s\nSource: %s\nDestination: %s\nName: %s\n' "$DEVICE" "$SOURCE" "$DEST" "$NAME"
+printf -v QSOURCE '%q' "$FINAL"
 printf -v QDEST '%q' "$DEST"
-termux-usb -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE"
-echo 'Upload command completed. Confirm the file appears on the calculator.'
+log "start source=$SOURCE destination=$DEST device=$DEVICE size=$(wc -c < "$SOURCE")"
+# Retry only an explicit transport open failure. Never retry filesystem busy, timeout,
+# or an ambiguous partial write: re-uploading could corrupt or duplicate remote data.
+for attempt in 1 2; do
+  ERRFILE="$(mktemp "$WORK/error.XXXXXXXX")"
+  set +e
+  "$USB_CMD" -r -E -e "env LD_LIBRARY_PATH=$PREFIX/lib $PREFIX/bin/nlink-v2 upload $QSOURCE $QDEST" "$DEVICE" 2> >(tee "$ERRFILE" >&2)
+  rc=$?
+  set -e
+  if (( rc == 0 )); then
+    log "completed attempt=$attempt status=transport-success remote-verification=not-available"
+    rm -f "$ERRFILE"
+    echo 'Upload command completed; verify the file on the calculator.'
+    exit 0
+  fi
+  if (( attempt == 1 )) && grep -qiE '^(No such device|.*permission denied.*)$' "$ERRFILE"; then
+    log "retrying attempt=$attempt reason=device-open rc=$rc"
+    rm -f "$ERRFILE"
+    sleep 1
+    select_usb || exit 1
+    continue
+  fi
+  log "failed attempt=$attempt rc=$rc (no unsafe retry)"
+  rm -f "$ERRFILE"
+  exit "$rc"
+done
