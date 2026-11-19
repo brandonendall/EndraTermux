@@ -1,0 +1,44 @@
+name: EndraTermux Run011 Smart Push
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bin/push'
+      - 'scripts/install-push.sh'
+      - '.github/workflows/run011-smart-push.yml'
+  workflow_dispatch:
+jobs:
+  package-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Bash syntax
+        run: |
+          bash -n bin/push
+          bash -n scripts/install-push.sh
+      - name: Test command help
+        run: |
+          bash bin/push --help
+      - name: Package Run011
+        run: |
+          mkdir -p EndraTermux_Run011
+          cp bin/push EndraTermux_Run011/push
+          cp scripts/install-push.sh EndraTermux_Run011/install-push.sh
+          cat > EndraTermux_Run011/README.txt <<'EOF'
+EndraTermux Run011 Smart Push
+Install on Android Termux from the EndraTermux repository:
+  bash scripts/install-push.sh
+Usage:
+  push /storage/emulated/0/Download/file.tns
+  push /storage/emulated/0/Download/file.tns /USBTEST
+Requires an installed, working nlink-v2 and Termux:API.
+This workflow validates and packages the Bash wrapper; it cannot test USB hardware.
+EOF
+          tar -czf EndraTermux_Run011_SmartPush.tar.gz EndraTermux_Run011
+          sha256sum EndraTermux_Run011_SmartPush.tar.gz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndraTermux_Run011_SmartPush
+          path: |
+            EndraTermux_Run011_SmartPush.tar.gz
+            SHA256SUMS.txt
