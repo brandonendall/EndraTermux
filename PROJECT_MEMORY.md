@@ -75,3 +75,8 @@ Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name
 - User confirmed a successful local quiet-mode push to calculator destination `/upload`. Normal `push SOURCE /upload` should show only `Sending` and completion; `push -d SOURCE /upload` should show full diagnostics; `push --diag` lists device/dependencies. Errors must remain visible even in quiet mode.
 - Created `feature/run013-quiet-push` from field-tested Run012, committed `bin/push` quiet-by-default with `-d`, and Run013 GitHub Actions package workflow. Do not claim live byte progress; underlying `nlink-v2` does not currently provide a progress meter. Preserve existing compiled transport.
 - Public read-only clone/pull and direct chat downloadable artifacts with Termux commands are user preferences.
+
+## Run013 documentation/installer alignment (2026-11-19)
+- Updated README.md to document anonymous clone/pull, Run013 quiet transfer, `-d`, `--diag`, `/upload` destination and first-time setup. Updated root `install.sh` to install `bin/push`, back up prior `push`, and preserve `nlink-v2`.
+- CRITICAL: a fresh phone is NOT yet fully supported end-to-end because the repo does not ship a verified distributable ARM64 `nlink-v2` transport plus dependencies. Installer must warn clearly, not pretend older `nlink` is equivalent. Do not advertise full one-command installation until that gap is resolved.
+- Run013 GitHub Actions packaging only bundles script and memory; README and installer are committed separately on `feature/run013-quiet-push`. Future build artifacts should include README/install.sh or release package as appropriate.
