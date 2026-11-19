@@ -70,3 +70,8 @@ Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name
 - `push /storage/emulated/0/Download/endra_run012_test.txt` completed with `nspire_session_ok`, file service connection, `file_data_write ret=0`.
 - User supplied photo showing the calculator text viewer displaying `EndraTermux Run012 Test` from `endra_run012_test.txt`. **Confirmed end-to-end USB transfer and file readability.** Retry logic and rollback have not been field-tested.
 - User prefers anonymous read-only clone/pull of public GitHub repos, no GitHub credentials or pushing from Termux. For each build, also offer direct downloadable artifact plus copy/paste Termux commands beginning `clear`.
+
+## Run013 quiet-push work (2026-11-19)
+- User confirmed a successful local quiet-mode push to calculator destination `/upload`. Normal `push SOURCE /upload` should show only `Sending` and completion; `push -d SOURCE /upload` should show full diagnostics; `push --diag` lists device/dependencies. Errors must remain visible even in quiet mode.
+- Created `feature/run013-quiet-push` from field-tested Run012, committed `bin/push` quiet-by-default with `-d`, and Run013 GitHub Actions package workflow. Do not claim live byte progress; underlying `nlink-v2` does not currently provide a progress meter. Preserve existing compiled transport.
+- Public read-only clone/pull and direct chat downloadable artifacts with Termux commands are user preferences.
