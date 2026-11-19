@@ -63,3 +63,10 @@ Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name
 - Always accompany the direct download with concise, tested-as-far-as-possible Termux copy/paste installation and test commands; start every command block with `clear`.
 - Default Android Download location: `/storage/emulated/0/Download/`. The GitHub Actions artifact ZIP may contain a nested `.tar.gz`; inspect before installation. Preserve installed working `push` as a backup, and NEVER replace `nlink` or `nlink-v2` with a script archive.
 - Run012 GitHub Actions successful run ID 44605920810, artifact ID 14569652719, artifact name `EndraTermux_Run012_SmartPush`. Downloaded into chat as `/mnt/data/EndraTermux_Run012_Build.zip`; outer ZIP contains `EndraTermux_Run012_SmartPush.tar.gz` and `SHA256SUMS.txt`; tarball contains `EndraTermux_Run012/push` and `PROJECT_MEMORY.md`. This is Bash script packaging, not a newly compiled nlink-v2 binary.
+
+## Run012 end-to-end field validation — 2026-11-19
+- User installed Run012 via anonymous public `git clone` into `~/EndraTermux-Updates`, copied `bin/push` into `$PREFIX/bin/push`; `push --help` showed Run012 diagnostics support.
+- `push --diag` located `termux-usb`, `nlink-v2`, and live USB `/dev/bus/usb/001/006` (USB number varies).
+- `push /storage/emulated/0/Download/endra_run012_test.txt` completed with `nspire_session_ok`, file service connection, `file_data_write ret=0`.
+- User supplied photo showing the calculator text viewer displaying `EndraTermux Run012 Test` from `endra_run012_test.txt`. **Confirmed end-to-end USB transfer and file readability.** Retry logic and rollback have not been field-tested.
+- User prefers anonymous read-only clone/pull of public GitHub repos, no GitHub credentials or pushing from Termux. For each build, also offer direct downloadable artifact plus copy/paste Termux commands beginning `clear`.
