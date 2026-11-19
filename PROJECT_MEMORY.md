@@ -41,3 +41,19 @@ Next: obtain/verify actual Build008 USB Recovery V2 artifact and executable name
 - Download flow: discover GitHub `download_workflow_artifact`; call with repo, artifact ID, account link ID, optional filename; verify file exists under `/mnt/data` and inspect ZIP; provide a **direct sandbox file link**. For newer builds, first discover the latest successful workflow run and its artifact ID; do not assume Build008 is latest.
 - User explicitly requires direct ChatGPT attachments whenever possible, not a GitHub Actions webpage.
 - **Do not overwrite `$PREFIX/bin/nlink`**. Install `nlink-v2` separately; confirm CLI usage and USB safety before connecting to the calculator.
+
+## Run011 field checkpoint — 2026-11-19
+- Run011 Smart Push is a Bash script `bin/push`, not Python; calls separate compiled `nlink-v2`.
+- User installed Run011 directly in Termux and successfully transferred `endrahome_run029_desktop.tns` to calculator directory `/upload`.
+- First attempt printed `No such device` for USB `/dev/bus/usb/001/002`; repeating the command succeeded. Cause unproven. Do not assert USB permissions as the root cause.
+- Run011 accepts `push SOURCE [CALCULATOR_DIRECTORY]`; default remote directory `/`. Earlier statement in this memory that push takes only one argument describes older versions.
+- Success of one transfer does not establish byte-for-byte remote verification or resolve the earlier filesystem-busy/directory enumeration stall.
+
+## Run012 development — 2026-11-19
+- Working branch: `feature/run012-usb-reliability`. Preserve Run011 on main until tests pass.
+- Run012 adds bounded retry (one retry only for recognized USB open failures), fresh USB device lookup, unique temporary staging, local append-only logs at `~/.local/state/endra/push-run012.log`, and `push --diag`.
+- No retry on filesystem-busy, timeouts or ambiguous partial writes. Never reset calculator, terminate calculator processes, or alter `nlink-v2` automatically.
+- `push --diag` checks local dependencies and lists USB devices; it does NOT prove calculator file service is healthy.
+- Successful `nlink-v2 upload` return code is **transport command success**, NOT remote checksum verification.
+- EndraTask companion project runs inside TI-Nspire and may export read-only process/USB/filesystem diagnostics. Remote task kill is a future capability, NOT available via the current `push` file-transfer command.
+- Next: GitHub Actions Bash validation, test Run012 on Termux with a small disposable file, compare local logs with EndraTask diagnostic reports, then promote to main only after verified.
