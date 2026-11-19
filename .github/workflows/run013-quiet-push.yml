@@ -1,0 +1,26 @@
+name: EndraTermux Run013 Quiet Push
+on:
+  push:
+    branches: [feature/run013-quiet-push]
+  workflow_dispatch:
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate push script
+        run: |
+          bash -n bin/push
+          bash bin/push --help
+      - name: Package
+        run: |
+          mkdir -p EndraTermux_Run013
+          cp bin/push PROJECT_MEMORY.md EndraTermux_Run013/
+          tar -czf EndraTermux_Run013_QuietPush.tar.gz EndraTermux_Run013
+          sha256sum EndraTermux_Run013_QuietPush.tar.gz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndraTermux_Run013_QuietPush
+          path: |
+            EndraTermux_Run013_QuietPush.tar.gz
+            SHA256SUMS.txt
