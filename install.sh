@@ -31,9 +31,26 @@ if [[ -x "$PREFIX/bin/nlink-v2" ]]; then
 else
   echo "[ACTION REQUIRED] Verified Android ARM64 nlink-v2 binary/dependencies not bundled."
 fi
-if [[ -f tools/gbz.py ]]; then
-  echo "[INFO] GBZ source present; verify CLI and test compatibility before use."
+if [[ -f tools/gbz.py && -f bin/gbz ]]; then
+  python -m py_compile tools/gbz.py
+  mkdir -p "$HOME/UltraGBA_Tools"
+  if [[ -f "$HOME/UltraGBA_Tools/gbz.py" ]]; then
+    if cmp -s tools/gbz.py "$HOME/UltraGBA_Tools/gbz.py"; then
+      echo "[OK] Existing GBZ source matches repository; preserved."
+    else
+      echo "[SAFE] Existing GBZ source differs; preserving it. No automatic overwrite."
+    fi
+  else
+    install -m 600 tools/gbz.py "$HOME/UltraGBA_Tools/gbz.py"
+    echo "[OK] GBZ source installed."
+  fi
+  if [[ -e "$PREFIX/bin/gbz" ]]; then
+    echo "[SAFE] Existing gbz launcher preserved."
+  else
+    install -m 700 bin/gbz "$PREFIX/bin/gbz"
+    echo "[OK] GBZ launcher installed."
+  fi
 else
-  echo "[ACTION REQUIRED] Exact GBZ packer source not bundled. Do not substitute generic compression."
+  echo "[ACTION REQUIRED] GBZ files missing from repository."
 fi
 echo "Usage: push FILE /upload; npull [-d] [-r] REMOTE_PATH [LOCAL_DIRECTORY] (when installed)."
