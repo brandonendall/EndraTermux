@@ -63,21 +63,22 @@ npull -d -r /EndraHome .
 
 Normal mode hides native diagnostic spam; `-d` exposes it. The local Run015 importer uses `nlink-v2 ls` structured `[V2 ENUM] stage=item_ok ... name=... type=0 size=...` output to enumerate files, then `nlink-v2 download` per file. The user successfully imported six files from `/EndraHome`. The earlier parser failed on plain filenames; use the corrected local script. **This repo installer does not yet install `npull`** until the exact tested version is recovered and committed. A future Run016 should add live progress, safe reconnect handling, verified skip/resume and nested directory tests.
 
-## GBZ ROM packing (packaging pending)
+## GBZ1 ROM packing — Run016 source committed
 
-GBZ is the page-based ROM format used by EndraGBA / earlier UltraGBA. Historical project notes refer to `tools/gbz.py pack GAME.zip.tns` on Android/Termux. The exact tested packer source, its CLI and dependencies **have not yet been located and validated for this repo**, so no substitute encoder is bundled or advertised as compatible. Do not mistake ordinary ZIP/gzip compression for the emulator's GBZ format.
+The exact original owner-supplied `tools/gbz.py` (SHA-256 `19311c5e70fab209482fdc9aeaf8281dbb0dd507e1b2ad8b7157e15c0861dc6d`) and its `bin/gbz` Termux launcher are now committed on this development branch. The packer uses zlib-compressed 32 KiB pages, a GBZ1 header and CRC32 verification. The safe installer installs the tool only if it is missing and **never overwrites an existing GBZ installation**.
 
-Once the exact packer is recovered, package it under `tools/gbz.py` (or another verified source path), include licensing and checksum, and provide a `gbzpack` launcher, tests against a known ROM and the existing emulator, and example:
 ```bash
 clear
-# Example only — not installed yet:
-# gbzpack /storage/emulated/0/Download/GAME.zip.tns
+gbz pack /storage/emulated/0/Download/GAME.gba
+gbz info /storage/emulated/0/Download/GAME.gbz.tns
+gbz unpack /storage/emulated/0/Download/GAME.gbz.tns
 ```
-Keep original ROMs and saves; don't repack copyrighted ROMs for distribution.
+
+The original owner-recovered Run014 `push`, Run015 `npull` and Android ARM64 `nlink-v2` are available in the separately delivered Run016 portable recovery ZIP, **not yet committed to this GitHub branch**. This branch remains incomplete for fresh-phone USB transfers. Do not distribute copyrighted ROMs. Hardware verification on a new phone is pending.
 
 ## Phone migration checklist
 
-1. Export the **working** `push`, `push-run014`, `npull`, `nlink-v2`, GBZ packer (if installed), and required native libraries from the old phone, recording `sha256sum` for each. Do not publish binaries until redistribution rights and compatibility are verified.
+1. Export the **working** `push`, `push-run014`, `npull`, `nlink-v2`, GBZ packer, and required native libraries from the old phone, recording `sha256sum` for each. Do not publish binaries until redistribution rights and compatibility are verified.
 2. Install the official Termux and Termux:API apps on the new phone and grant Android storage/USB permissions.
 3. Clone this repository, run the installer, and **do not overwrite** newer working wrappers with Run013.
 4. Install the verified ARM64 native transport and dependencies separately, compare hashes, and run `nlink-v2 --help` before USB tests.
